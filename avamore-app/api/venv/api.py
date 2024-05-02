@@ -1,12 +1,14 @@
 from flask import Flask, jsonify, request
-import time
-from openpyxl import load_workbook
 import os
+import xlwings
+from datetime import datetime
+from openpyxl import load_workbook
 
 app = Flask(__name__)
 
+file_path = os.path.join(os.path.dirname(__file__), 'ARM Template_Simplified.xlsx')
+
 def load_excel():
-    file_path = os.path.join(os.path.dirname(__file__), 'ARM Template_Simplified.xlsx')
     if os.path.exists(file_path):
         workbook = load_workbook(file_path)
         return workbook
@@ -14,115 +16,79 @@ def load_excel():
         return None
 
 def save_and_close(workbook):
-    
-    workbook.save('ARM Template_Simplified.xlsx')
-    workbook.close()
-
-
-@app.route('/default-period', methods = ['GET'])
-def default_period_value():
-    workbook = load_excel()
-    if workbook: 
-        inputs_worksheet = workbook['Inputs']
-        default_start = inputs_worksheet['C28'].value
-        default_end = inputs_worksheet['C29'].value
-        default_start_formatted = default_start.strftime('%Y-%m-%d')
-        default_end_formatted = default_end.strftime('%Y-%m-%d')
-        return jsonify({'default_start':default_start_formatted,'default_end':default_end_formatted})
-    else: 
-        return jsonify({'error':'Excel file not found'}), 404
-
-
-
-@app.route('/interest-rate', methods = ['GET', 'POST'])
-def interest_rate_value():
-    if request.method == 'GET':
-        workbook = load_excel()
-        if workbook:
-            inputs_worksheet = workbook['Inputs']
-            interest_rate = inputs_worksheet['C22'].value * 100
-            save_and_close(workbook)
-            return jsonify({'interest_rate': interest_rate})
-        else:
-            return jsonify({'error': 'Excel file not found'}), 404
-    elif request.method == 'POST':
-        data = request.json
-        new_interest_rate = data.get('interest_rate')
-        if new_interest_rate is not None:
-            workbook = load_excel()
-            if workbook:
-                update_interest_rate(workbook, new_interest_rate)
-                print("newrate", new_interest_rate)
-                return jsonify({'message': 'Interest rate updated successfully'})
-            else:
-                return jsonify({'error': 'Excel file not found'}), 404
-        else:
-            return jsonify({'error': 'Invalid data provided'}), 400
-
-def update_interest_rate(workbook, new_rate):
-    inputs_worksheet = workbook['Inputs']
-    inputs_worksheet['C22'] = new_rate / 100    
-    save_and_close(workbook)
-
-@app.route('/interest-due', methods=['GET'])
-def interest_due_value():
-    file_path = os.path.join(os.path.dirname(__file__), 'ARM Template_Simplified.xlsx')
-    if os.path.exists(file_path):
-        workbook = load_workbook(file_path, data_only=True)
     if workbook:
-        data_calculations_sheet = workbook['Calculations']
-        total_interest = round(data_calculations_sheet['B3'].value,2)
-        save_and_close(workbook)
-        return jsonify({'interest_due': total_interest})  # Return JSON response
-    else:
-        return jsonify({'error': 'Excel file not found'}), 404
+        try:
+            workbook.save(file_path)
+            workbook.close()
+            excel_app = xlwings.App(visible=False)
+            excel_book = excel_app.books.open(file_path)
+            excel_book.save()
+            excel_book.close()
+            excel_app.quit()
+        except Exception as e:
+            print("Error saving and closing workbook:", e)
+        finally:
+            # Delete temporary files
+            temp_files = [f for f in os.listdir(os.path.dirname(file_path)) if f[-2:]=="00"]
+            for temp_file in temp_files:
+                temp_file_path = os.path.join(os.path.dirname(file_path), temp_file)
+                try:
+                    os.remove(temp_file_path)
+                except Exception as e:
+                    print("Error deleting temporary file:", e)
 
 
-@app.route('/facility', methods=['GET', 'POST'])
-def handle_facility():
+@app.route('/values', methods=['GET', 'POST'])
+def get_values():
     if request.method == 'GET':
-        workbook = load_excel()
+        workbook = load_workbook(file_path, data_only=True)
         if workbook:
             inputs_sheet = workbook['Inputs']
-            facility_value = inputs_sheet['C15'].value
-            save_and_close(workbook)
-            return jsonify({'facility_value': facility_value})
+            facility_A = inputs_sheet['C15'].value
+            interest_rate = inputs_sheet['C22'].value * 100
+            default_start = inputs_sheet['C28'].value
+            default_end = inputs_sheet['C29'].value
+            default_start_formatted = default_start.strftime('%Y-%m-%d')
+            default_end_formatted = default_end.strftime('%Y-%m-%d')
+            
+            data_calculations_sheet = workbook['Calculations']
+            interest_due = round(data_calculations_sheet['B3'].value,2)
+            
+            workbook.close()
+            
+            return jsonify({'facility_A': facility_A,
+                            'interest_rate': interest_rate,
+                            'default_start': default_start_formatted,
+                            'default_end': default_end_formatted,
+                            'interest_due': interest_due})
         else:
-            return jsonify({'error': 'Excel file not found'}), 404
+            return jsonify({'error': 'The Excel file was not found'}), 404
     elif request.method == 'POST':
         data = request.json
         workbook = load_excel()
         if workbook:
-            facility_A_value(workbook, data['facility_value'])
-            return jsonify({'message': 'Facility A value changed successfully'})
+            calculations_sheet = workbook['Calculations']      
+            inputs_sheet = workbook['Inputs']
+            inputs_sheet['C15'] = float(data['facility_A'])
+            inputs_sheet['C22'] = float(data['interest_rate']) / 100
+            inputs_sheet['C28'] = datetime.strptime(data['default_start'], '%Y-%m-%d')
+            inputs_sheet['C29'] = datetime.strptime(data['default_end'], '%Y-%m-%d')
+            save_and_close(workbook)
+            
+            # Reopen the workbook in data-only mode to retrieve the calculated interest_due
+            workbook = load_workbook(file_path, data_only=True)
+            calculations_sheet = workbook['Calculations']
+            interest_due = round(calculations_sheet['B3'].value,2)
+            
+            workbook.close()
+            
+            return jsonify({'facility_A': data['facility_A'],
+                            'interest_rate': data['interest_rate'],
+                            'default_start': data['default_start'],
+                            'default_end': data['default_end'],
+                            'interest_due': interest_due})
         else:
             return jsonify({'error': 'Excel file not found'}), 404
-
-def facility_A_value(workbook, value):
-    inputs_sheet = workbook['Inputs']
-    inputs_sheet['C15'] = float(value)
-    save_and_close(workbook)
-
-@app.route('/values', methods =['GET'])
-def get_values():
-    workbook = load_excel()
-    if workbook:
-        inputs_sheet = workbook['Inputs']
-        facility_A= inputs_sheet['C15'].value
-        interest_rate= inputs_sheet['C22'].value
-        default_start= inputs_sheet['C28'].value
-        default_end= inputs_sheet['C29'].value
-        save_and_close(workbook)
-        return jsonify({'facility_A' : facility_A, 
-                        'interest_rate' : interest_rate, 
-                        'default_start' : default_start,
-                        'default_end' : default_end})
-    else:
-        return jsonify({'error the excel file was not found'}), 404
-
-@app.route('/time')
-def get_time():
-    return {'time': time.time()}
 
 if __name__ == '__main__':
     app.run()

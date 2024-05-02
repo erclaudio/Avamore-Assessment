@@ -3,13 +3,23 @@ from datetime import datetime
 from time import sleep
 import sys
 import xlwings
-
+import os
 def load_excel():
-    return load_workbook('ARM Template_Simplified.xlsx')
+    return load_workbook('part1/ARM Template_Simplified.xlsx')
 
 def save_and_close(workbook):
-    workbook.save('ARM Template_Simplified.xlsx')
-    workbook.close()
+    if workbook:
+        try:
+            workbook.save('part1/ARM Template_Simplified.xlsx')
+            workbook.close()
+            excel_app = xlwings.App(visible=False)
+            excel_book = excel_app.books.open('part1/ARM Template_Simplified.xlsx')
+            excel_book.save()
+            excel_book.close()
+            excel_app.quit()
+        except Exception as e:
+            print("Error saving and closing workbook:", e)
+        
 
 def facility_A_value(workbook):
     inputs_sheet = workbook['Inputs']
@@ -30,7 +40,7 @@ def change_default_date(workbook, column):
     save_and_close(workbook)
 
 def view_details():
-    workbook = load_workbook('ARM Template_Simplified.xlsx', data_only=True)
+    workbook = load_workbook('part1/ARM Template_Simplified.xlsx', data_only=True)
     inputs_sheet = workbook['Inputs']
     facility_cell_value = inputs_sheet['C15'].value
     interest_cell_value = round(inputs_sheet['C22'].value * 100, 3)
@@ -43,17 +53,21 @@ def view_details():
     workbook.close()
 
 def view_interest():
-    excel_app = xlwings.App(visible = False)
-    excel_book = excel_app.books.open('ARM Template_Simplified.xlsx')
-    excel_book.save()
-    excel_book.close()
-    excel_app.quit()
+    try:
+        excel_app = xlwings.App(visible=False)
+        excel_book = excel_app.books.open('part1/ARM Template_Simplified.xlsx')
+        excel_book.save()
+        excel_book.close()
+        excel_app.quit()
 
-    data_workbook = load_workbook('ARM Template_Simplified.xlsx', data_only=True)
-    data_calculations_sheet = data_workbook['Calculations']
-    total_interest = round(data_calculations_sheet['B3'].value, 2)
-    print(f'{"Total Interest Due:":22} {total_interest}')
-    data_workbook.close()
+        data_workbook = load_workbook('part1/ARM Template_Simplified.xlsx', data_only=True)
+        data_calculations_sheet = data_workbook['Calculations']
+        total_interest = round(data_calculations_sheet['B3'].value, 2)
+        print(f'{"Total Interest Due:":22} {total_interest}')
+        data_workbook.close()
+    except Exception as e:
+        print("An error occurred:", e)
+
 
 def exit_menu():
     print("Changes Saved, Exiting...")

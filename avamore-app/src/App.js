@@ -3,49 +3,31 @@ import logo from './AVAMORE-LOGO.png';
 import './App.css';
 
 function App() {
-  const [currentTime, setCurrentTime] = useState(0);
-  const [facilityValue, setFacilityValue] = useState(null);
-  const [interestDue, setInterestDue] = useState(null);
-  const [interestRate, setInterestRate] = useState(null);
-  const [defaultStart, setDefaultStart] = useState(null)
-  const [defaultEnd, setDefaultEnd] = useState(null)
+  const [formValues, setFormValues]= useState({});
 
   useEffect(() => {  
 
     fetch('/values')
     .then(res => res.json())
-    .then(data => console.log(data))
+    .then(data => {
+      setFormValues(data)
+    })
     
-    fetch('/interest-rate')
-    .then(res => res.json())
-    .then(data => setInterestRate(data.interest_rate))
-    .catch(error => console.error('Error fetching interest rate:', error))
-
-    fetch('/time')
-      .then(res => res.json())
-      .then(data => setCurrentTime(data.time));
-
-    fetch('/facility')
-      .then(res => res.json())
-      .then(data => setFacilityValue(data.facility_value))
-      .catch(error => console.error('Error fetching facility value:', error));
-
-    fetch('/interest-due')
-      .then(res => res.json())
-      .then(data => setInterestDue(data.interest_due))
-      .catch(error => console.error('Error fetching interest due value:', error));
-    
-    fetch('/default-period')
-      .then(res => res.json())
-      .then(data => setDefaultStart(data.default_start))
-      .catch(error => console.error('Error fetching default date:', error));
-    
-    fetch('/default-period')
-    .then(res => res.json())
-    .then(data => setDefaultEnd(data.default_end))
-    .catch(error => console.error('Error fetching default date:', error));
   }, []);
+function handleSubmit(e) {
+  e.preventDefault()
+  fetch('/values', {
+    method: 'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(formValues)})
+    .then(res => res.json())
+    .then(data => {
+      setFormValues(data)
+    })
+  console.log(formValues)
+}
 
+  
   return (
     <div className="App">
       <header className="App-header">
@@ -53,11 +35,24 @@ function App() {
         <p>
           Avamore Loan Tool
         </p>
-        {facilityValue !== null && <p>Facility A Value: £{facilityValue}</p>}
-        {interestRate !== null && <p>Monthly Interest Rate: {interestRate}% </p>}
-        {defaultStart !== null && <p>Default Start Date: {defaultStart}</p>}
-        {defaultEnd !== null && <p>Default End Date: {defaultEnd}</p>}
-        {interestDue !== null && <p>Interest Due: £{interestDue}</p>}
+        <form onSubmit={handleSubmit}>
+          <label>
+            Facility A Value: <input type ="number" value = {formValues.facility_A} onChange={(e) => setFormValues({...formValues, facility_A: e.target.value})} />
+          </label>
+          <label>
+            Monthly Interest Rate: <input type ="number" step ="" value = {Math.round(formValues.interest_rate*100)/100} onChange={(e) => setFormValues({...formValues, interest_rate: e.target.value})} />
+          </label>
+          <label>
+            Default Period Start : <input type ="date" value = {formValues.default_start} onChange={(e) => setFormValues({...formValues, default_start: e.target.value})} />
+          </label>
+          <label>
+            Default Period End : <input type ="date" value = {formValues.default_end} onChange={(e) => setFormValues({...formValues, default_end: e.target.value})} />
+          </label>
+          <p><button type ="submit">Submit</button></p>
+          
+        </form>
+        
+        {formValues.interest_due !== null && <p>Interest Due: £{formValues.interest_due}</p>}
 
       </header>
       

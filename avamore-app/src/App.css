@@ -1,10 +1,14 @@
 .App {
   text-align: center;
+  
 }
 
 .App-logo {
   height: 40vmin;
   pointer-events: none;
+}
+body {
+  background-color: #1a2430; /* Set background color for the entire page */
 }
 
 @media (prefers-reduced-motion: no-preference) {
